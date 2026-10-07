@@ -10,9 +10,20 @@ import 'motion_controller.dart';
 import 'ui_components.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  final preferences = await SharedPreferences.getInstance();
-  runApp(MotionLabApp(controller: MotionController(preferences: preferences)));
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    final preferences = await SharedPreferences.getInstance();
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FlutterError.presentError(details);
+    };
+    runApp(MotionLabApp(controller: MotionController(preferences: preferences)));
+  }, (error, stack) {
+    if (error is PlatformException && error.message != null && error.message!.contains('StepDetection')) {
+      debugPrint('Ignored Pedometer plugin error: $error');
+    } else {
+      debugPrint('Unhandled error: $error\n$stack');
+    }
+  });
 }
 
 class MotionLabApp extends StatelessWidget {
@@ -120,7 +131,7 @@ class _MotionHomeState extends State<MotionHome> with WidgetsBindingObserver {
                       children: [
                         if (c.simulated)
                           const InfoStrip(
-                            'CHẾ ĐỘ MÔ PHỎNG · Dữ liệu tổng hợp để thuyết trình, không phải số đo từ điện thoại.',
+                            'CHẾ ĐỘ MÔ PHỎNG.',
                             warning: true,
                           ),
                         if (c.storageMessage.isNotEmpty)
@@ -128,7 +139,6 @@ class _MotionHomeState extends State<MotionHome> with WidgetsBindingObserver {
                         ...switch (_page) {
                           0 => _overview(),
                           1 => _sensors(),
-                          2 => _history(),
                           _ => _learn(),
                         },
                       ],
@@ -150,10 +160,6 @@ class _MotionHomeState extends State<MotionHome> with WidgetsBindingObserver {
             label: 'Tổng quan',
           ),
           NavigationDestination(icon: Icon(Icons.sensors), label: 'Cảm biến'),
-          NavigationDestination(
-            icon: Icon(Icons.history_rounded),
-            label: 'Lịch sử',
-          ),
           NavigationDestination(
             icon: Icon(Icons.auto_stories_outlined),
             label: 'Kiến thức',
@@ -400,6 +406,8 @@ class _MotionHomeState extends State<MotionHome> with WidgetsBindingObserver {
       icon: const Icon(Icons.show_chart),
       label: const Text('Khám phá dữ liệu cảm biến'),
     ),
+    const SizedBox(height: 32),
+    ..._history(),
   ];
 
   Widget _sourceSelector() => Panel(
@@ -692,8 +700,8 @@ class _MotionHomeState extends State<MotionHome> with WidgetsBindingObserver {
     final records = _filteredHistory;
     return [
       const SectionHeading(
-        'Từng phiên, từng kết quả.',
-        'Lưu tối đa 50 phiên gần nhất trên thiết bị này.',
+        'Lịch sử phiên đo',
+        'Các phiên gần nhất được lưu tự động sau khi kết thúc.',
       ),
       SegmentedButton<String>(
         segments: const [
@@ -721,11 +729,6 @@ class _MotionHomeState extends State<MotionHome> with WidgetsBindingObserver {
                 'Bắt đầu một phiên và nhấn Kết thúc\nđể lưu kết quả vào lịch sử.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: muted, height: 1.6),
-              ),
-              const SizedBox(height: 18),
-              FilledButton(
-                onPressed: () => setState(() => _page = 0),
-                child: const Text('Về tổng quan'),
               ),
               const SizedBox(height: 12),
             ],
